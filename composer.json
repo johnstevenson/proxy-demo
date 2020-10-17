@@ -1,0 +1,12 @@
+{
+    "require": {
+        "workerman/workerman": "^4.0",
+        "composer/ca-bundle": "^1.2",
+        "docopt/docopt": "^1.0"
+    },
+    "autoload": {
+        "psr-4": {
+            "JohnStevenson\\ProxyDemo\\": "src"
+        }
+    }
+}

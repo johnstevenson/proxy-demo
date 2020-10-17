@@ -1,0 +1,7 @@
+*.conf
+!default.conf
+composer.lock
+phpcs.xml
+phpunit.xml
+.phpunit.result.cache
+vendor/
