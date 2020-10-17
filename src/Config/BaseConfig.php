@@ -23,6 +23,7 @@ class BaseConfig
             }
 
             $this->settings = $this->readConfiguration($rootDir);
+            $this->setUserAgent($doc);
 
         } catch (Exception $e) {
             $this->halt($e);
@@ -121,5 +122,23 @@ class BaseConfig
         }
 
         return $defaultSettings;
+    }
+
+    private function setUserAgent($doc)
+    {
+        if (!preg_match('/(client|curl|streams)\.php/',$doc, $match)) {
+            return;
+        }
+
+        if (!$context = $this->get('context-http', null, null)) {
+            return;
+        }
+
+        if ($userAgent = $this->get('user_agent', $context, null)) {
+            return;
+        }
+
+        $value = sprintf('PHP/%s (proxy-demo-%s)', PHP_VERSION, $match[1]);
+        $this->settings['context-http']['user_agent'] = $value;
     }
 }

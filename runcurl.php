@@ -46,6 +46,11 @@ if (strpos($proxyUrl, 'https') === 0) {
     }
 }
 
+if (!empty($options['http']['user_agent'])) {
+    $userAgent = $options['http']['user_agent'];
+    curl_setopt($curlHandle, CURLOPT_USERAGENT, $userAgent);
+}
+
 if ($output->isVerbose()) {
     curl_setopt($curlHandle, CURLOPT_VERBOSE, true);
 }

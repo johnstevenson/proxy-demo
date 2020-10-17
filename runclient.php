@@ -23,8 +23,6 @@ $config = new ClientConfig($doc);
 list($proxyUrl, $targetUrl, $options) = $config->getRequestConfig($forStreams = false);
 
 $output = new ClientOutput($config);
-unset($config);
-
 
 // Check and parse target url
 try {
@@ -61,9 +59,7 @@ if (!$secureHttp) {
     // GET request
     $output->action('GET request for '.$targetUrl);
 
-    $headers = [sprintf('GET %s HTTP/1.0', $targetUrl), 'Host: '.$host];
-    $headerLine = implode("\r\n", $headers)."\r\n\r\n";
-
+    $headerLine = formatGetRequest($options, $targetUrl, $host);
     fwrite($proxySocket, $headerLine);
     $result = readStream($proxySocket, $contents);
 
@@ -119,9 +115,7 @@ if (!$secureHttp) {
 
     // GET request through connect tunnel
     $output->action('GET request through https tunnel for '.$targetUrl);
-
-    $headers = [sprintf('GET %s HTTP/1.0', $path), 'Host: '.$host];
-    $headerLine = implode("\r\n", $headers)."\r\n\r\n";
+    $headerLine = formatGetRequest($options, $targetUrl, $host);
 
     if ($secureProxy) {
         fwrite($clientPipe, $headerLine);
@@ -178,6 +172,24 @@ function formatProxyUrl($proxyUrl, $targetUrl)
         strpos($proxyUrl, 'ssl') === 0,
         strpos($targetUrl, 'https') === 0,
     ];
+}
+
+function formatGetRequest($options, $targetUrl, $host)
+{
+    if (isset($options['http']['protocol_version'])) {
+        $proto = $options['http']['protocol_version'];
+    }
+
+    $proto = !empty($proto) ? $proto : 1.0;
+
+    $headers = [sprintf('GET %s HTTP/%d', $targetUrl, $proto)];
+    $headers[] = 'Host: '.$host;
+
+    if (!empty($options['http']['user_agent'])) {
+        $headers[] = 'User-Agent: '.$options['http']['user_agent'];
+    }
+
+    return implode("\r\n", $headers)."\r\n\r\n";
 }
 
 function prepareStreamSocket($socket)
