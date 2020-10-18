@@ -11,17 +11,22 @@ class ProxyRequest
     /** @var TcpConnection */
     private $connection;
     private $headerLines;
+    /** @var ProxyHeaders */
+    private $headerManager;
     private $errorMessage;
+    private $notImplemented;
     /** @var ProxyOutput */
     private $output;
     private $values;
 
     public function __construct(ProxyOutput $output, TcpConnection $connection, $buffer)
     {
-        $this->buffer = $buffer;
-        unset($buffer);
         $this->output = $output;
         $this->connection = $connection;
+        $this->buffer = $buffer;
+        unset($buffer);
+        $this->headerManager = new ProxyHeaders();
+
         $this->values = $this->checkValues();
     }
 
@@ -44,15 +49,18 @@ class ProxyRequest
             return;
         }
 
-        $headerManager = new ProxyHeaders();
-        if (!$headerManager->create($headerLines)) {
+        if (!$this->checkRequestMethod($method)) {
             return;
         }
 
-        $hostHeader = $headerManager->getHost();
+        if (!$this->headerManager->create($headerLines)) {
+            return;
+        }
+
+        $hostHeader = $this->headerManager->getHostHeader();
 
         if ($method === 'CONNECT') {
-            if (!$addr = $this->checkMethodConnect($method, $uri, $bodyIndex)) {
+            if (!$addr = $this->checkConnect($method, $uri, $bodyIndex)) {
                 return;
             }
             $message = null;
@@ -60,19 +68,18 @@ class ProxyRequest
             if (!$this->checkUri($method, $uri, $hostHeader, $host, $port, $path)) {
                 return;
             }
-
             if (!$this->checkConnection($host, $port)) {
                 return;
             }
 
             $addr = $host.':'.$port;
             $hostHeader = sprintf('Host: %s', $port === 80 ? $host : $addr);
-            $headerManager->setHost($hostHeader);
+            $this->headerManager->setHostHeader($hostHeader);
 
             // We cannot access the piped streams (because they are overwritten)
             // so we use HTTP/1.0 which will not let the connection hang.
             $requestLine = sprintf('%s %s HTTP/1.0', $method, $path);
-            $headerLines = $headerManager->getHeaderLines($requestLine);
+            $headerLines = $this->headerManager->getHeaderLines($requestLine);
 
             $message = $headerLines.substr($this->buffer, $bodyIndex);
             unset($this->buffer);
@@ -91,7 +98,7 @@ class ProxyRequest
         return !empty($headerLines);
     }
 
-    private function checkMethodConnect($method, $uri, $bodyIndex)
+    private function checkConnect($method, $uri, $bodyIndex)
     {
         // We should not have a body
         if ($bodyIndex !== strlen($this->buffer)) {
@@ -144,7 +151,7 @@ class ProxyRequest
 
     private function checkConnection($host, $port)
     {
-        $hostIp = ltrim(rtrim($host, ']'), '[');
+        $hostIp = $this->normalizeIp($host);
 
         if (!filter_var($hostIp, FILTER_VALIDATE_IP)) {
             // Resolve host name
@@ -155,7 +162,11 @@ class ProxyRequest
             }
         }
 
-        $proxyIp = ltrim(rtrim($this->connection->getLocalIp(), ']'), '[');
+        $this->setLocalhost($hostIp);
+
+        $proxyIp = $this->normalizeIp($this->connection->getLocalIp());
+        $this->setLocalhost($proxyIp);
+
         if ($hostIp !== $proxyIp) {
             return true;
         }
@@ -193,6 +204,14 @@ class ProxyRequest
         return true;
     }
 
+    private function checkRequestMethod($method)
+    {
+        if (!$result = in_array($method, ['CONNECT', 'GET', 'HEAD', 'OPTIONS'])) {
+            $this->notImplemented = $method;
+        }
+        return $result;
+    }
+
     private function closeConnection()
     {
         if ($this->headerLines) {
@@ -201,13 +220,16 @@ class ProxyRequest
         if ($this->errorMessage) {
             $this->output->notifyError($this->connection, $this->errorMessage);
         }
-        $this->output->notifyBadRequest($this->connection);
 
-        $headers = [
-            'HTTP/1.1 400 Bad Request',
-            'Connection: close',
-        ];
+        if ($this->notImplemented) {
+            $this->output->notifyNotImplemented($this->connection, $this->notImplemented);
+            $header = 'HTTP/1.1 501 Not Implemented';
+        } else {
+            $this->output->notifyBadRequest($this->connection);
+            $header = 'HTTP/1.1 400 Bad Request';
+        }
 
+        $headers = [$header, 'Connection: close'];
         $this->connection->close(implode("\r\n", $headers)."\r\n\r\n", true);
     }
 
@@ -257,5 +279,17 @@ class ProxyRequest
 
         $port = isset($port) ? $port : $defaultPort;
         return true;
+    }
+
+    private function normalizeIp($ip)
+    {
+        return ltrim(rtrim($ip, ']'), '[');
+    }
+
+    private function setLocalhost(&$ip)
+    {
+        if (in_array($ip, ['127.0.0.1', '::1'])) {
+            $ip = '127.0.0.1';
+        }
     }
 }

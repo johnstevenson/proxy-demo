@@ -4,6 +4,7 @@ require 'vendor/autoload.php';
 
 use JohnStevenson\ProxyDemo\Config\ClientConfig;
 use JohnStevenson\ProxyDemo\Output\ClientOutput;
+use JohnStevenson\ProxyDemo\SocketFactory;
 
 $doc = <<<DOC
 PHP Proxy Client.
@@ -23,6 +24,7 @@ $config = new ClientConfig($doc);
 list($proxyUrl, $targetUrl, $options) = $config->getRequestConfig($forStreams = false);
 
 $output = new ClientOutput($config);
+$socketFactory = new SocketFactory();
 
 // Check and parse target url
 try {
@@ -38,22 +40,13 @@ $output->info($proxyUrl, $targetUrl);
 // Connect to proxy
 $output->trying('Connect to proxy');
 
-$errMsg = '';
-set_error_handler(function ($code, $msg) use (&$errMsg){
-    $errMsg = $msg;
-});
-
 $context = stream_context_create($options);
-$proxySocket = stream_socket_client($proxy, $errno, $errstr, 30, STREAM_CLIENT_CONNECT, $context);
-restore_error_handler();
 
-if (!$proxySocket) {
-    $output->fail('Cannot connect to proxy: '.$errMsg);
+if (!$proxySocket = $socketFactory->createClient($proxy, $context, $error)) {
+    $output->fail('Cannot connect to proxy: '.$error);
 }
 
 $output->ok()->connection('Proxy connection', $proxySocket);
-
-prepareStreamSocket($proxySocket);
 
 if (!$secureHttp) {
     // GET request
@@ -86,11 +79,10 @@ if (!$secureHttp) {
     if ($secureProxy) {
         $output->trying('Create pipe sockets for https tunnel');
 
-        try {
-            list($clientPipe, $serverPipe) = createPipeSockets($context);
-        } catch (RuntimeException $e) {
-            $output->fail($e->getMessage());
+        if (!$pipes = $socketFactory->createPipeSockets($context, $error)) {
+            $output->fail($error);
         }
+        list($clientPipe, $serverPipe) = $pipes;
 
         $output->ok()->
             connection('  Client pipe', $clientPipe)->
@@ -114,7 +106,7 @@ if (!$secureHttp) {
     $output->ok();
 
     // GET request through connect tunnel
-    $output->action('GET request through https tunnel for '.$targetUrl);
+    $output->action('GET request through tunnel for '.$path);
     $headerLine = formatGetRequest($options, $path, $host);
 
     if ($secureProxy) {
@@ -186,108 +178,34 @@ function formatGetRequest($options, $uri, $host)
     return implode("\r\n", $headers)."\r\n\r\n";
 }
 
-function prepareStreamSocket($socket)
-{
-    stream_set_blocking($socket, false);
-    stream_set_read_buffer($socket, 0);
-    stream_set_write_buffer($socket, 0);
-}
-
-function createPipeSockets($clientContext)
-{
-    $sockets = [];
-    $attempts = 0;
-    $lastError = '';
-
-    while ($attempts++ < 3) {
-        if ($sockets = createPair($clientContext, $lastError)) {
-            break;
-        }
-    }
-
-    if (!$sockets) {
-        throw new RuntimeException($lastError);
-    }
-
-    return $sockets;
-}
-
-function createPair($clientContext, &$lastError)
-{
-    // Create server
-    $uri = '127.0.0.1:0';
-    $flags = STREAM_SERVER_BIND | STREAM_SERVER_LISTEN;
-
-    $server = @stream_socket_server($uri, $errno, $errstr, $flags);
-    if ($server && !$errno) {
-        stream_set_blocking($server, false);
-
-        if (!$address = @stream_socket_get_name($server, false)) {
-            fclose($server);
-            $server = null;
-        }
-    }
-
-    if (!$server) {
-        $lastError = sprintf('Could not create temp server %s', $uri);
-        return;
-    }
-
-    // Create server client
-    $flags = STREAM_CLIENT_CONNECT | STREAM_CLIENT_ASYNC_CONNECT;
-
-    if ($clientSocket = @stream_socket_client($address, $errno, $errstr, null, $flags, $clientContext)) {
-        prepareStreamSocket($clientSocket);
-
-        if (false === @stream_socket_get_name($clientSocket, true)) {
-            fclose($clientSocket);
-            $clientSocket = null;
-        }
-    }
-
-    if (!$clientSocket) {
-        $lastError = sprintf('Connection to temp server %s failed', $address);
-        fclose($server);
-        return;
-    }
-
-    // Create
-
-    if (!$serverSocket = @stream_socket_accept($server, 0)) {
-        $lastError = sprintf('Temp server %s refused connection from %s', $uri, $address);
-        fclose($clientSocket);
-        fclose($server);
-        return;
-    }
-
-    prepareStreamSocket($serverSocket);
-    fclose($server);
-
-    return [$clientSocket, $serverSocket];
-}
-
 function readStream($fd, &$data)
 {
     $data = '';
-    $read = [$fd];
-    $write = null;
-    $except = null;
-
     $timeout = 200000;
+    $retries = 10;
 
-    while ($read) {
-        $ret = @stream_select($read, $write, $except, 0, $timeout);
+    while (1) {
+        $read = [$fd];
+        $write = null;
+        $except = null;
 
-        if (!$ret) {
+        if (false === @stream_select($read, $write, $except, 0, $timeout)) {
+             break;
+        }
+
+        if (!$read) {
+            if (!$retries-- || $data) {
+                break;
+            }
             continue;
         }
 
-        if ($read) {
-            $buffer = @fread($fd, 8192);
-            if (!$buffer && @feof($fd)) {
-                return empty($data) ? false : true;
-            }
+        while ($buffer = fread($fd, 8192)) {
             $data .= $buffer;
+        }
+
+        if (feof($fd)) {
+            break;
         }
     }
 
@@ -309,7 +227,7 @@ function enableCrypto($fdTls, $peerName, $fd, $fdPipe = null)
             return $tls;
         }
 
-        $ret = stream_select($read, $write, $except, 0, $timeout);
+        $ret = @stream_select($read, $write, $except, 0, $timeout);
 
         if (false === $ret || ($fdPipe && !$read)) {
             return $tls;
@@ -333,7 +251,7 @@ function pipeTransaction($fd1, $fd2)
         $write = null;
         $except = null;
 
-        $ret = stream_select($read, $write, $except, 0, $timeout);
+        $ret = @stream_select($read, $write, $except, 0, $timeout);
 
         if (false === $ret || !$read || !pipeData($read, $fd1, $fd2)) {
             return;

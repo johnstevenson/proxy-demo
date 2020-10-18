@@ -60,7 +60,7 @@ class ProxyOutput extends BaseOutput
     public function notifyConnection(TcpConnection $connection)
     {
         if ($connection instanceof AsyncTcpConnection) {
-            $message = sprintf('Internal - connection to %s', $connection->getRemoteAddress());
+            $message = sprintf('Proxy connection to %s', $connection->getRemoteAddress());
         } else {
             $message = 'New connection';
         }
@@ -71,6 +71,12 @@ class ProxyOutput extends BaseOutput
     public function notifyBadRequest(TcpConnection $connection)
     {
         $this->notify($connection, 'Bad Request: Connection closed');
+    }
+
+    public function notifyNotImplemented(TcpConnection $connection, $method)
+    {
+        $message = sprintf('Method not implemented (%s): Connection closed', $method);
+        $this->notify($connection, $message);
     }
 
     public function notifyRequest(TcpConnection $connection, array $headerLines)

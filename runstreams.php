@@ -31,6 +31,9 @@ $output->info($proxyUrl, $targetUrl);
 error_reporting(-1);
 $errors = [];
 set_error_handler(function ($errno, $errstr) use (&$errors) {
+    if (($pos = strpos($errstr, '): ')) !== false) {
+        $errstr = ucfirst(substr($errstr, $pos + 3));
+    }
     $errors[] = $errstr;
 });
 

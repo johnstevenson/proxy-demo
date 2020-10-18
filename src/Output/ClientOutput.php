@@ -64,12 +64,11 @@ class ClientOutput extends BaseOutput
     public function success(array $headers, $content)
     {
         if (!empty($headers)) {
-            $this->writeLn(PHP_EOL.implode(PHP_EOL, $headers));
+            $this->writeVerbose(PHP_EOL.implode(PHP_EOL, $headers));
         }
 
         $bytes = strlen($content);
         $this->writeLn(sprintf('%s%d bytes returned', PHP_EOL, $bytes));
-        $this->writeLn(PHP_EOL.'SUCCESS');
         exit(0);
     }
 }

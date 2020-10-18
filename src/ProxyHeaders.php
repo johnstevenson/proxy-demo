@@ -36,13 +36,14 @@ class ProxyHeaders
         return $headerLines = implode("\r\n", $headers)."\r\n\r\n";
     }
 
-    public function getHost()
+    public function getHostHeader()
     {
         return $this->hostHeader;
     }
 
-    public function setHost($value)
+    public function setHostHeader($value)
     {
+        // Make Host first header line
         array_unshift($this->headers, $value);
         $this->headerMap = $this->createHeaderMap($this->headers);
     }

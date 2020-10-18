@@ -34,6 +34,7 @@ curl_setopt($curlHandle, CURLOPT_HEADER, true);
 curl_setopt($curlHandle, CURLOPT_URL, $targetUrl);
 curl_setopt($curlHandle, CURLOPT_CONNECTTIMEOUT, 10);
 curl_setopt($curlHandle, CURLOPT_TIMEOUT, 30);
+curl_setopt($curlHandle, CURLOPT_FOLLOWLOCATION, true);
 
 curl_setopt($curlHandle, CURLOPT_CAINFO, $cafile);
 curl_setopt($curlHandle, CURLOPT_PROXY, $proxyUrl);
