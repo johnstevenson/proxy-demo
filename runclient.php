@@ -14,7 +14,7 @@ Usage:
 Options:
   -p --proxy=<scheme|url>   Proxy url from config [http|https], or a specific url.
   -t --target=<scheme|url>  Target url from config [default: http], or a specific url.
-  -c --config=<file>        Config file other than root config.ini.
+  -c --config=<file>        Config file other than settings.conf.
   -v --verbose              Show more output.
   -h --help                 Show this screen.
 DOC;
@@ -115,7 +115,7 @@ if (!$secureHttp) {
 
     // GET request through connect tunnel
     $output->action('GET request through https tunnel for '.$targetUrl);
-    $headerLine = formatGetRequest($options, $targetUrl, $host);
+    $headerLine = formatGetRequest($options, $path, $host);
 
     if ($secureProxy) {
         fwrite($clientPipe, $headerLine);
@@ -174,15 +174,9 @@ function formatProxyUrl($proxyUrl, $targetUrl)
     ];
 }
 
-function formatGetRequest($options, $targetUrl, $host)
+function formatGetRequest($options, $uri, $host)
 {
-    if (isset($options['http']['protocol_version'])) {
-        $proto = $options['http']['protocol_version'];
-    }
-
-    $proto = !empty($proto) ? $proto : 1.0;
-
-    $headers = [sprintf('GET %s HTTP/%d', $targetUrl, $proto)];
+    $headers = [sprintf('GET %s HTTP/1.0', $uri)];
     $headers[] = 'Host: '.$host;
 
     if (!empty($options['http']['user_agent'])) {

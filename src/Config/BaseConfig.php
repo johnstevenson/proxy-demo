@@ -61,7 +61,7 @@ class BaseConfig
         $result = isset($items[$key]) ? $items[$key] : $default;
 
         if ($result === null && func_num_args() < 3) {
-            throw new \RuntimeException($key.' not found in configuration');
+            throw new \RuntimeException($key.' is missing');
         }
 
         return $result;
@@ -93,7 +93,7 @@ class BaseConfig
 
     protected function getProxyUrlForStream($url)
     {
-        if (!$scheme = parse_url($url, PHP_URL_SCHEME)) {
+        if (strpos($url, '://') === false) {
             return 'tcp://'.$url;
         }
 

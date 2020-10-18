@@ -1,5 +1,6 @@
 *.conf
 !default.conf
+!example.conf
 composer.lock
 phpcs.xml
 phpunit.xml

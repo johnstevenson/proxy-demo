@@ -14,7 +14,7 @@ Usage:
 Options:
   -p --proxy=<scheme|url>   Proxy url from config [http|https], or a specific url.
   -t --target=<scheme|url>  Target url from config [default: http], or a specific url.
-  -c --config=<file>        Config file other than root config.ini.
+  -c --config=<file>        Config file other than settings.conf.
   -v --verbose              Show more output.
   -h --help                 Show this screen.
 DOC;

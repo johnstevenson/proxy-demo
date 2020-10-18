@@ -12,20 +12,22 @@ for the required context-option settings:
 
 This proxy is only a demo so it is assumed that it will be running locally. It is recommended
 to use a public domain name for your proxy, because it is very easy to set up if you have access to
-one. Alternatively you can create a self-signed certificate and disable the _verify_peer_ and
-_verify_peer_name_ settings in `settings.conf`.
+one.
 
-This example uses [ZeroSSL](https://zerossl.com/) to obtain a free 90-day certificate. It has a
-clean and simple web interface which makes the entire process very straight-forward. The
+If you don't have access to one then you may be able to do something with a self-signed certificate
+and various ssl context-options in `settings.conf`, but you will only be able to make http requests.
+
+This example uses [ZeroSSL](https://zerossl.com/) to obtain a free 90-day certificate. Their web
+interface is clean and simple which makes the entire process very straight-forward. The
 instructions below can be adapted for other providers or certificate generation methods.
 
-Create an account then add a New Certificate for your public domain (or sub-domain) name. Allow the
-app to auto-generate a CSR (Certificate Signing Resquest) and private key then select your choice
-of domain verification, which uses email, DNS CNAME or file upload methods.
+Create an account then add a New Certificate for your public domain (or sub-domain) name. Agree to
+auto-generate a CSR (Certificate Signing Resquest) and private key, then select your choice of
+domain verification, which can be done by email, DNS CNAME or file upload methods.
 
-Note that the DNS CNAME method is probably the simplest (if you can add a new DNS entry) because
-the endpoint does not have to exist. The verification process makes a DNS query for the CNAME
-record provided by ZeroSSL, which allows you to create a new sub-domain for this purpose.
+Note that the DNS CNAME method is probably the simplest because the endpoint does not have to exist.
+The verification process makes a DNS query for the CNAME record provided by ZeroSSL, which allows
+you to create a new sub-domain just for this purpose.
 
 Download your certificate after verification and unzip it to this directory, resulting in:
 
@@ -57,3 +59,13 @@ Add your proxy domain to your `hosts` file:
 
 127.0.0.1 my.domain.com
 ```
+
+To start your newly-configured server, run:
+```bash
+php server.php --proxy https
+```
+Open a separate terminal and test it with either the client or curl scripts:
+```bash
+php runclient.php --proxy https --target https
+```
+Note that using the `-v` option with either of these commands shows you more information.

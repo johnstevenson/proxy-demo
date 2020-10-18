@@ -17,7 +17,7 @@ Usage:
 
 Options:
   -p --proxy <scheme>   Proxy scheme from config [http|https].
-  -c --config <file>    Config file other than root config.ini.
+  -c --config <file>    Config file other than settings.conf.
   -v --verbose          Show more output.
   -h --help             Show this screen.
 
@@ -69,4 +69,10 @@ $worker->onMessage = function (TcpConnection $connection, $buffer) use ($output)
     @$remote_connection->connect();
 };
 
-Worker::runAll();
+try {
+    Worker::runAll();
+} catch (Exception $e) {
+    $output->writeLn('Error: '.$e->getMessage());
+    exit(1);
+}
+
